@@ -1,0 +1,3 @@
+decl
+decl
+union
