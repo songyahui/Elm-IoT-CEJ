@@ -1,5 +1,8 @@
 main = { model = model, view = view, update = update }
---1.3444
+hh = 1.3444
+hh = True
+hh = (a,b,c,d,f)
+
 model = { 
       _sensor_name = NULL
     , _sensor_type = BMP180
@@ -16,7 +19,8 @@ model = {
     , _library = [ "onoff" ,"raspi-sensors"]
 }
 
-type Msg a b = SetHigh a | SetLow b 
+type Msg = SetHigh String->Int->Int | SetLow 
+
 
 -- update : List a -> Int -> Int 
 update msg m = 
@@ -25,7 +29,7 @@ update msg m =
     SetLow ->  {model | _device_state = 0} 
 
 
-onChange = if data > 30 then SetHigh else SetLow
+onChange = if data > 275 then SetHigh else SetLow
 
 view model = 
     io [][

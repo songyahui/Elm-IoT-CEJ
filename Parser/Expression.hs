@@ -17,7 +17,12 @@ eStr = do
 decimalNumE :: Parser Expr
 decimalNumE = do
     fc  <- lexeme $ many1 $ oneOf numChar
-    return $ Int (read fc)
+    mc  <- optionMaybe $ char '.'
+    case mc of 
+        Nothing -> return $ Int (read fc)
+        Just dot -> do 
+                ec <- lexeme $ many1 $ oneOf numChar
+                return $ Float (read (fc++"."++ec))
   where numChar = ['0'..'9']
 
 hexNumE :: Parser Expr
@@ -35,7 +40,10 @@ eVar :: Parser Expr-- String
 eVar = do
     fc  <- oneOf fch
     r   <- lexeme $ many $ oneOf rest
-    return $ Var ([fc] ++ r)
+    case ([fc] ++ r) of 
+        "True" -> return $ Boolean True
+        "False" -> return $ Boolean False
+        otherwise -> return $ Var ([fc] ++ r)
     where fch =  ['A'..'Z'] ++ ['a'..'z'] ++ "_"
           rest = fch ++ ['0'..'9']
 
@@ -151,9 +159,29 @@ eCase = do
     case_body <- lexeme $ many1 $ try case_bodyE
     return $ Case case_object case_body
 
+eTupple :: Parser Expr --Expr Expr [Expr]
+eTupple = do 
+    lb <- lexeme $ char '(' 
+    first <- lexeme $ expr0
+    cb1 <- lexeme $ char ',' 
+    second <- lexeme $ expr0
+    cb2 <- optionMaybe $ lexeme $ char ',' 
+    case cb2 of 
+        Nothing -> do 
+            rb1 <- lexeme $ char ')' 
+            return $ Tupple first second []
+        Just dot -> do 
+            rest <- try $ sepBy expr0 (lexeme $ char ',') 
+            rb2 <- lexeme $ char ')' 
+            return $ Tupple first second rest
+
+
+
+
+
 eCall :: Parser Expr -- Expr [Expr]
 eCall = do 
-    fe <- try $ lexeme $ eVar
+    fe <- try $ lexeme $ lowVar
     ec <- try $ lexeme $ many expr
     return $ Call fe ec
 
@@ -162,7 +190,7 @@ expr0 :: Parser Expr
 expr0 = try eStr <|> eInt <|> eVar <|> eNegate <|> eList 
 
 expr :: Parser Expr
-expr = try eBinops <|> eIf <|> eLet <|> eCase<|> eRecord_Update <|> eLambda  <|> eCall <|> expr0
+expr = try eBinops <|> eTupple <|>eIf <|> eLet <|> eCase<|> eRecord_Update <|> eLambda  <|> eCall <|> expr0
 
 --exprs :: Parser [Expr]
 --exprs = spaces *> many (lexeme $ expr)

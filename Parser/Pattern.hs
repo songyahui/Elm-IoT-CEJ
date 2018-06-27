@@ -60,6 +60,24 @@ pList = do
     rb <- lexeme $ char ']' 
     return $ PList content
 
+
+
+pPTuple :: Parser Pattern-- Pattern Pattern [Pattern] --5
+pPTuple = do 
+    lb <- lexeme $ char '(' 
+    first <- lexeme $ pattern0
+    cb1 <- lexeme $ char ',' 
+    second <- lexeme $ pattern0
+    cb2 <- optionMaybe $ lexeme $ char ',' 
+    case cb2 of 
+        Nothing -> do 
+            rb1 <- lexeme $ char ')' 
+            return $ PTuple first second []
+        Just dot -> do 
+            rest <- try $ sepBy pattern0 (lexeme $ char ',') 
+            rb2 <- lexeme $ char ')' 
+            return $ PTuple first second rest
+
 pattern0:: Parser Pattern
 pattern0  = try pAnything <|> pStr <|> pInt <|>  pVar 
 

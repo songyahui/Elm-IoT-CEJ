@@ -6,18 +6,18 @@ import Control.Applicative ((<*), (*>), (<$>), (<*>))
 data Expr
   = Str String
   | Int Int
-  | Float Double --1
-  | Boolean Bool -- 2
+  | Float Double 
+  | Boolean Bool 
   | Var String
   | List [Expr]
   | Negate Expr 
   | Binops String Expr Expr
   | Lambda [Pattern] Expr
-  | Call Expr [Expr]
+  | Call String [Expr]
   | If [(Expr, Expr)] Expr
   | Let [Def] Expr
   | Case Expr [(Pattern, Expr)]
-  | Tupple Expr Expr [Expr] -- 3
+  | Tupple Expr Expr [Expr] 
   | Record [(String, Expr)]
   | Update String [(String, Expr)]
   deriving (Show, Eq)
@@ -33,16 +33,16 @@ data Pattern
   | PVar String 
   | PCons Pattern Pattern
   | PList [Pattern]   
-  | PRecord [String]  --4
-  | PTuple Pattern Pattern [Pattern] --5
+  | PRecord [String]  --4 ?? 
+  | PTuple Pattern Pattern [Pattern]
   deriving (Show, Eq)
 
 -- TYPE
 data Type
-  = TLambda Type Type  --6
+  = TLambda Type Type  
   | TVar String 
-  | TType String [Type] --7
-  | TTuple Type Type [Type] --8
+  | TType String [Type] --7 ??
+  | TTuple Type Type [Type] 
   | TRecord [(String, Type)] 
   deriving (Show, Eq)
 
@@ -58,7 +58,7 @@ lexeme p = do
            x <- p <* spaces
            return x
 
-lowVar :: Parser String-- String
+lowVar :: Parser String
 lowVar = do
     fc  <- oneOf fch
     r   <- lexeme $ many $ oneOf rest
@@ -66,7 +66,7 @@ lowVar = do
     where fch =  ['a'..'z'] ++ "_"
           rest =  fch ++ ['0'..'9'] ++ ['A'..'Z'] 
 
-uppVar :: Parser String-- String
+uppVar :: Parser String
 uppVar = do
     fc  <- oneOf fch
     r   <- lexeme $ many $ oneOf rest
