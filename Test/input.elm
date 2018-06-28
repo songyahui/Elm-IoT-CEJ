@@ -1,7 +1,4 @@
 main = { model = model, view = view, update = update }
-hh = 1.3444
-hh = True
-hh = (a,b,c,d,f)
 
 model = { 
       _sensor_name = NULL
@@ -29,7 +26,7 @@ update msg m =
     SetLow ->  {model | _device_state = 0} 
 
 
-onChange = if data > 275 then SetHigh else SetLow
+onChange = if data > 30 then SetHigh else SetLow
 
 view model = 
     io [][
