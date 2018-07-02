@@ -1,4 +1,4 @@
-main = { model = model, view = view, update = update }
+main = {  view = view, model = model,update = update }
 
 model = { 
       _sensor_name = NULL
@@ -24,7 +24,6 @@ update msg m =
   case msg of 
     SetHigh -> {model | _device_state = 1} 
     SetLow ->  {model | _device_state = 0} 
-
 
 onChange = if data > 30 then SetHigh else SetLow
 

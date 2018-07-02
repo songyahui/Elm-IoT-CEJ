@@ -1,6 +1,6 @@
 import Parser.Parser as P
-import Validator as V
-import Generator as G
+import Validator.Validator as V
+import Generator.Generator as G
 import Text.ParserCombinators.Parsec 
 import System.IO 
 import System.Environment 
@@ -19,10 +19,10 @@ main = do
                print astp 
                case V.validator astp of 
                     Left ev -> do print ev 
-                    Right astv -> 
-                        do putStrLn "Validate succecfully!" 
-                           hPutStr outFile (G.generator "" astp )
-                
+                    Right fun_names -> 
+                        do  print fun_names
+                            putStrLn "Validate succecfully!" 
+                            hPutStr outFile (G.generator astp fun_names)
     hClose inFile
     hClose outFile
 
