@@ -34,7 +34,7 @@ data Pattern
   | PCons Pattern Pattern
   | PList [Pattern]   
   | PRecord [String]  --4 ?? 
-  | PTuple Pattern Pattern [Pattern]
+  | PTuple Pattern Pattern [Pattern] 
   deriving (Show, Eq)
 
 -- TYPE
@@ -49,6 +49,7 @@ data Type
 -- DECLARATIONS
 data Decl
   = Union String [String] [(String, [Type])]
+  | Alias String [String] Type
   | Definition String [Pattern] Expr
   deriving (Show, Eq)
 
@@ -63,16 +64,16 @@ lowVar = do
     fc  <- oneOf fch
     r   <- lexeme $ many $ oneOf rest
     return $ ([fc] ++ r)
-    where fch =  ['a'..'z'] ++ "_"
-          rest =  fch ++ ['0'..'9'] ++ ['A'..'Z'] 
+    where fch =  ['a'..'z'] 
+          rest =  fch ++ ['0'..'9'] ++ ['A'..'Z'] ++ "_"
 
 uppVar :: Parser String
 uppVar = do
     fc  <- oneOf fch
     r   <- lexeme $ many $ oneOf rest
     return $ ([fc] ++ r)
-    where fch =   ['A'..'Z'] ++ "_"
-          rest =  fch ++ ['0'..'9'] ++ ['a'..'z'] 
+    where fch =   ['A'..'Z'] 
+          rest =  fch ++ ['0'..'9'] ++ ['a'..'z'] ++ "_"
 
 
 --ssh pi@172.25.101.8

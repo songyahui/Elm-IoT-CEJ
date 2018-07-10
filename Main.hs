@@ -17,12 +17,13 @@ main = do
         Right astp -> 
             do putStrLn "Parse succecfully!" 
                print astp 
-               case V.validator astp of 
-                    Left ev -> do print ev 
-                    Right fun_names -> 
-                        do  print fun_names
-                            putStrLn "Validate succecfully!" 
-                            hPutStr outFile (G.generator astp fun_names)
+            --    case V.validator astp of 
+            --         Left ev -> do print ev 
+            --         Right fun_names -> 
+            --             do  print fun_names
+            --                 putStrLn "Validate succecfully!\n" 
+            --                 hPutStr outFile $ show (G.generator astp fun_names)
+            --                 putStrLn $ show $ G.generator astp fun_names
     hClose inFile
     hClose outFile
 

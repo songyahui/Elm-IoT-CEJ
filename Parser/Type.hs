@@ -45,7 +45,7 @@ tTuple = do
 tdataTypecell :: Parser (String,Type)
 tdataTypecell = do 
     c <- lexeme $ tVar0
-    eq <- lexeme $ char '=' 
+    eq <- lexeme $ char ':' 
     ex <- lexeme $ type_
     return (c,ex)
 

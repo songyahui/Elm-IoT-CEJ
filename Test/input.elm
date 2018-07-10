@@ -13,10 +13,10 @@ model = {
     , _device_log_info = "Written to pin 18"
     --------------------------------
     , _interval = 5000
-    , _library = [ "onoff" ,"raspi-sensors"]
+    , _library = [ "raspi-sensors","node-dht-sensor","system-sleep"]
 }
 
-type Msg = SetHigh String->Int->Int | SetLow 
+type Msg = SetHigh | SetLow 
 
 
 -- update : List a -> Int -> Int 
@@ -29,5 +29,6 @@ onChange = if data > 30 then SetHigh else SetLow
 
 view model = 
     io [][
-        buzzer  [onChange] []
+        buzzer1  [onChange] []
+        , buzzer2 [SetHigh] [] 
     ]

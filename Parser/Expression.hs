@@ -183,14 +183,15 @@ eCall :: Parser Expr -- Expr [Expr]
 eCall = do 
     fe <- try $ lexeme $ lowVar
     ec <- try $ lexeme $ many expr
-    return $ Call fe ec
+    if length ec == 0 then return $ Var fe
+    else return $ Call fe ec
 
 ----------------------------------------
 expr0 :: Parser Expr
 expr0 = try eStr <|> eInt <|> eVar <|> eNegate <|> eList 
 
 expr :: Parser Expr
-expr = try eBinops <|> eTupple <|>eIf <|> eLet <|> eCase<|> eRecord_Update <|> eLambda  <|> eCall <|> expr0
+expr = try eBinops <|> eTupple <|>eIf <|> eLet <|> eCase<|> eRecord_Update <|> eLambda   <|> expr0
 
 --exprs :: Parser [Expr]
 --exprs = spaces *> many (lexeme $ expr)

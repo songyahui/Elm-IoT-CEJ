@@ -82,7 +82,7 @@ pattern0:: Parser Pattern
 pattern0  = try pAnything <|> pStr <|> pInt <|>  pVar 
 
 pattern :: Parser Pattern
-pattern = try pCons <|> pList  <|> pattern0
+pattern = try pCons <|> pList <|> pPTuple <|> pattern0
 
 
 --patterns :: Parser [Pattern]
