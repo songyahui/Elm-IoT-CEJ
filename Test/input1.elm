@@ -1,13 +1,20 @@
 first (a, b) = a
+second (a,b) = b
 
-second (a,b) = b 
-
-type alias Sensor =  {s_type: String, s_address:Int}
-type alias Device =  {
-    d_pin : Int -- 18
-    ,d_lib: Maybe String -- onoff
-    ,d_func : Maybe String --Gpio after onoff
-    ,d_dir : Maybe String --in/out
+type SensorInput msg = SI msg Sensor
+type IoTSystem   a b = IS a b  
+type IOSensors   msg = IOS msg Sensor
+type IODevices   msg = IOD msg Device
+type IOSignal        = SetHigh | SetLow
+type alias Sensor =  
+    { s_type: String
+    , s_address: Int
+    }
+type alias Device =  
+    { d_pin : Int 
+    , d_lib : Maybe String 
+    , d_func: Maybe String 
+    , d_dir : Maybe String 
     }
 
 bmp180 : Sensor
@@ -16,92 +23,95 @@ bmp180 = {s_type = "BMP180", s_address = 77}
 tsl2561 : Sensor
 tsl2561 = {s_type = "TSL2561", s_address = 39} 
 
-buzzer1 : Device 
-buzzer1 = {
-    d_pin   = 18
-    ,d_lib  = Just "onoff"-- onoff
-    ,d_func = Just "Gpio" --
-    ,d_dir  = Just "out" --out 
-    }
-
---light1 : Device 
---light1 = {d_pin = 12}
-
---fan1 : Device 
---fan1 = {d_pin = 26}
-
---type Component = Sen Sensor | Dev Device
-type SensorInput msg = LI msg Sensor
---type TemperatureInput msg = TI msg Sensor
-type IoTSystem a b = IS a b  
-type IOSensors msg = IOS msg Sensor
-type IODevices msg = IOD msg Device
-type IOSignal = High | Low
-
-
-onLightChange: (Int -> Msg) -> Sensor ->  SensorInput Msg
-onLightChange f s = let m = f 1 in LI m s
-
-onTemperatureChange: (Int->Msg) -> Sensor ->  SensorInput Msg
-onTemperatureChange f s = let m = f 1 in LI m s
-
-
---light : LightInput Msg  -> IOSensors (LightInput Msg)
 light : a -> Sensor -> IOSensors a
 light a b =  IOS a b
 
---temperature : TemperatureInput Msg -> IOSensors (TemperatureInput Msg)
-temperature : a ->Sensor -> IOSensors a 
+temperature : a -> Sensor -> IOSensors a 
 temperature a b = IOS a b
 
 buzzer : IOSignal -> Device-> IODevices IOSignal
 buzzer a b = IOD a b
+
+led : IOSignal -> Device-> IODevices IOSignal
+led a b = IOD a b
+
+fan : IOSignal -> Device-> IODevices IOSignal
+fan a b = IOD a b
  
 iot : List (IOSensors a) -> List (IODevices b) -> IoTSystem (List (IOSensors a))  (List (IODevices b) )
 iot a b = IS a b 
 
-iot_main : { model : ( TT, LT )
-    , update : Msg -> ( TT, LT ) -> ( TT, LT )
-    , view :
-          ( TT, LT )
-          -> IoTSystem
-                 (List (IOSensors (Sensor -> SensorInput Msg) ))
-                 (List (IODevices IOSignal ))
+
+buzzer_1 : Device 
+buzzer_1 = {
+     d_pin   = 18
+    ,d_lib  = Just "onoff"
+    ,d_func = Just "Gpio" 
+    ,d_dir  = Just "out"
     }
+
+led_1 : Device 
+led_1 = {
+     d_pin  = 12
+    ,d_lib  = Just "onoff"
+    ,d_func = Just "Gpio" 
+    ,d_dir  = Just "out"
+    }
+
+fan_1 : Device 
+fan_1 = {
+     d_pin  = 16
+    ,d_lib  = Just "onoff"
+    ,d_func = Just "Gpio"
+    ,d_dir  = Just "out"
+    }
+
+onLightChange : (Int -> Msg) -> Sensor ->  SensorInput Msg
+onLightChange f s = let m = f 1 in SI m s
+
+onTemperatureChange : (Int->Msg) -> Sensor ->  SensorInput Msg
+onTemperatureChange f s = let m = f 1 in SI m s
+
 ------------------------------
-
-
 iot_main = { model = model, view = view, update = update }
 
-type TT = HIGH|MED|LOW
-type LT = DAY|EVE|NIGHT
+type TemperatureTyp  = HIGH|MEDIUM|LOW    --temperature type 
+type LightTyp        = DAY|EVENING|NIGHT  --light type 
 
-model: (TT , LT)
+model : (TemperatureTyp , LightTyp)
 model = (HIGH, DAY)
 
-type Msg = T Int | L Int 
+type Msg = Temperature Int | Light Int 
 
-update msg m = 
+update msg model = 
   case msg of 
-    T num -> if num < 27 
-             then (LOW, second  m)
-             else if num < 30 then (MED, second  m)
-             else (HIGH, second  m)
-    L num -> if num > 1000 
-             then (first m , DAY)
-             else if num > 500 then (first m , EVE)
-             else (first m , NIGHT)
+    Temperature num -> 
+             if num < 20 
+             then (LOW, second model)
+             else if num < 30 then (MEDIUM, second model)
+             else (HIGH, second model)
+    Light num -> 
+             if num > 500 
+             then (first model, DAY)
+             else if num > 200 then (first model, EVENING)
+             else (first model, NIGHT)
 
-view m = 
+view model = 
     iot [
-        light  (onLightChange L) tsl2561 
-        ,temperature (onTemperatureChange  T) bmp180 
+        light (onLightChange Light) tsl2561 
+        ,temperature (onTemperatureChange Temperature) bmp180 
     ]
     [
-        buzzer (alarm m) buzzer1
+        fan (control_fan model) fan_1
+        ,buzzer (control_buzzer model) buzzer_1
     ]
 
-alarm model = 
+control_fan model = 
     case model of
-        (LOW, DAY) -> High
-        otherwise -> Low
+        (HIGH, DAY)     -> SetHigh
+        (HIGH, EVENING) -> SetHigh
+        otherwise       -> SetLow
+control_buzzer model = 
+    case model of
+        (LOW, NIGHT)    -> SetHigh
+        otherwise       -> SetLow

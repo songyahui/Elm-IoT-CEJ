@@ -1,10 +1,10 @@
-module Analysis where
-import AST 
+module Generator.Analysis where
+import Parser.AST 
 import Data.Maybe
 import Data.List.Split
 
 
-find_function_by_name :: String -> [Declare] -> Maybe Declare
+find_function_by_name :: String -> [Decl] -> Maybe Decl
 find_function_by_name name [] = Nothing
 find_function_by_name name (x:xs) = 
     case x of 
@@ -67,7 +67,7 @@ function_names fun_lists =
                             Just u -> Just ([m] ++ [v] ++ [u])
         
         
-main_function :: [Declare] -> Maybe [String]
+main_function :: [Decl] -> Maybe [String]
 main_function [] = Nothing
 main_function (x:xs) = 
     case x of 
@@ -134,7 +134,7 @@ fatch_sensor _name =
     _name ++ ".fetch(function(err, data) {\nif(err) {\nprocess.exit(1)\n}\n\n" 
 
         
-generate_sensor_IC2 :: [String] ->[String] -> [Declare] ->String --[_name,_type,_desc,_addr]
+generate_sensor_IC2 :: [String] ->[String] -> [Decl] ->String --[_name,_type,_desc,_addr]
 generate_sensor_IC2 parm fun_names trees= --"IC2"
     let declare = declare_sensor (parm!!0) (parm!!1) (parm!!2) (parm!!3)
         loop_upper = "while (true) { \n" ++ fatch_sensor (parm!!0)
@@ -142,10 +142,10 @@ generate_sensor_IC2 parm fun_names trees= --"IC2"
         loop_lower = "});\nsleep(" ++ (parm!!4) ++ ");\n}"
     in declare ++ loop_upper ++ loop_middle ++ loop_lower
 
-generate_sensor_GPIO :: [String] ->[String] ->[Declare] -> String--[_name,_type,_desc,_addr]
+generate_sensor_GPIO :: [String] ->[String] ->[Decl] -> String--[_name,_type,_desc,_addr]
 generate_sensor_GPIO parm fun_names trees= "gpio"
 
-generate_sensor :: [(Expr,Expr)]  ->[String] ->[Declare] -> String
+generate_sensor :: [(Expr,Expr)]  ->[String] ->[Decl] -> String
 generate_sensor li fun_names trees = --"sensor\n"
     let sensor_name = lookup_record_by_first li "_sensor_name" 
         sensor_type = lookup_record_by_first li "_sensor_type" 
@@ -175,7 +175,7 @@ generate_sensor li fun_names trees = --"sensor\n"
                                         otherwise -> "sensor plug type not definded"
             
 
-analyse_Model ::[String] -> [Declare] -> String
+analyse_Model ::[String] -> [Decl] -> String
 analyse_Model fun_names trees = 
     let model_declare = find_function_by_name (fun_names!!0) trees
     in case model_declare of 
@@ -199,7 +199,7 @@ view_Msg_list li =
             otherwise -> "wrong in view_Msg_list2\n"
     in map helper li
 
-find_Msg_type :: [Declare] -> Maybe [String]
+find_Msg_type :: [Decl] -> Maybe [String]
 find_Msg_type [] = Nothing
 find_Msg_type (x:xs) = 
     case x of 
@@ -209,7 +209,7 @@ find_Msg_type (x:xs) =
             else find_Msg_type xs
         otherwise -> find_Msg_type xs
 
-generate_view_app :: String -> [(Expr,Expr)] -> [String] -> [Declare] -> String
+generate_view_app :: String -> [(Expr,Expr)] -> [String] -> [Decl] -> String
 generate_view_app temp [] fun_names trees = temp
 generate_view_app temp (x:xs) fun_names trees = 
     case x of 
@@ -224,7 +224,7 @@ generate_view_app temp (x:xs) fun_names trees =
 
 
 
-view_msg_app :: String ->[String] -> [Declare] -> String
+view_msg_app :: String ->[String] -> [Decl] -> String
 view_msg_app msg_app fun_names trees = 
     let app_decl = find_function_by_name msg_app trees
     in case app_decl of 
@@ -237,7 +237,7 @@ view_msg_app msg_app fun_names trees =
             
 
 
-generate_view :: String -> [String] -> [String]-> [String] -> [Declare] -> String
+generate_view :: String -> [String] -> [String]-> [String] -> [Decl] -> String
 generate_view temp [] msg_li fun_names trees= temp
 generate_view temp (x:xs) msg_li  fun_names trees= 
     if (x `elem` msg_li )
@@ -251,7 +251,7 @@ generate_view temp (x:xs) msg_li  fun_names trees=
     
     
 
-analyse_View :: [String] -> [Declare] -> String
+analyse_View :: [String] -> [Decl] -> String
 analyse_View fun_names trees =
     let model_declare = find_function_by_name (fun_names!!1) trees
     in case model_declare of 
@@ -266,7 +266,7 @@ analyse_View fun_names trees =
 
 -----------------------------------------------------
 
-get_device_name :: [Declare] -> [String] -> String
+get_device_name :: [Decl] -> [String] -> String
 get_device_name trees fun_names = 
     let model_declare = find_function_by_name (fun_names!!0) trees
     in case model_declare of 
@@ -300,7 +300,7 @@ generate_update (x:xs) msg device_name =
 
 
 
-analyse_Update :: String -> [String] ->[Declare] -> String
+analyse_Update :: String -> [String] ->[Decl] -> String
 analyse_Update msg fun_names trees = 
     let model_declare = find_function_by_name (fun_names!!2) trees
     in case model_declare of 
@@ -312,7 +312,7 @@ analyse_Update msg fun_names trees =
 
 
 -----------------------------------------------------
-traversal_AST :: [Declare] -> String
+traversal_AST :: [Decl] -> String
 traversal_AST trees = 
     case main_function trees of 
         Nothing ->  "Wrong defination of main function"

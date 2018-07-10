@@ -36,24 +36,14 @@ eInt :: Parser Expr-- Int
 eInt = try hexNumE <|> decimalNumE
 
 ----------------------------------------
+
 eVar :: Parser Expr-- String
 eVar = do
-    fc  <- oneOf fch
-    r   <- lexeme $ many $ oneOf rest
-    case ([fc] ++ r) of 
-        "True" -> return $ Boolean True
-        "False" -> return $ Boolean False
-        otherwise -> return $ Var ([fc] ++ r)
-    where fch =  ['A'..'Z'] ++ ['a'..'z'] ++ "_"
-          rest = fch ++ ['0'..'9']
-
-eVar0 :: Parser String-- String
-eVar0 = do
-    fc  <- oneOf fch
-    r   <- lexeme $ many $ oneOf rest
-    return $  ([fc] ++ r)
-    where fch =  ['A'..'Z'] ++ ['a'..'z'] ++ "_"
-          rest = fch ++ ['0'..'9']
+    fc <- lexeme $ lowVar_Not_Key 
+    rest <- lexeme $ optionMaybe $ many1 $expr0
+    case rest of 
+        Nothing -> return $ Var fc
+        Just rr -> return $ Call fc rr
 
 
 eNegate :: Parser Expr -- Expr
@@ -83,41 +73,45 @@ eIf = do
     if_word <- try $ lexeme $ string "if"
     if_ <- lexeme $ expr
     then_word <- lexeme $ string "then"
-    then_ <- lexeme $ expr0
+    then_ <- lexeme $ expr
     
     manyelseif <- many $ try elseifE
     
     else_word <- lexeme $ string "else"
-    else_ <- lexeme $ expr0
+    else_ <- lexeme $ expr
     
     return $ If ([(if_,then_)]++manyelseif) else_
 ----------------------------------------
 dataTypecell :: Parser (String,Expr)
 dataTypecell = do 
-    c <- lexeme $ eVar0
+    commo <- lexeme $ char ',' 
+    c <- lexeme $ lowVar
     eq <- lexeme $ char '=' 
-    ex <- lexeme $ expr0
+    ex <- lexeme $ expr
     return (c,ex)
 
-eRecord :: Parser Expr
-eRecord = do 
-    mc <- try $ lexeme $ try $ sepBy dataTypecell (lexeme $ char ',') 
+eRecord :: String -> Parser Expr
+eRecord fst= do 
+    eq <- lexeme $ char '=' 
+    ex <- lexeme $ expr
+    mc <- try $ lexeme $ try $ many dataTypecell 
     ec <- try $ lexeme $ char '}'
-    return $ Record mc
+    return $ Record ([(fst,ex)]++mc)
 
-eUpdate :: Parser Expr
-eUpdate = do 
-    fc <- lexeme $ eVar0
+eUpdate :: String -> Parser Expr
+eUpdate fst= do 
+    -- fc <- lexeme $ lowVar
     eq <- lexeme $ char '|' 
     mc <- try $ lexeme $ try $ sepBy dataTypecell (lexeme $ char ',') 
     ec <- try $ lexeme $ char '}'
-    return $ Update fc mc
+    return $ Update fst mc
 
 
 eRecord_Update :: Parser Expr -- [(String, Expr)]
 eRecord_Update = do 
     fc <- try $ lexeme $ char '{' 
-    ec <- lexeme $ eRecord <|> eUpdate
+    fst <- lexeme $ lowVar
+    ec <- lexeme $ (eRecord fst) <|> (eUpdate fst) 
     return ec
 
 eList :: Parser Expr-- [Expr]
@@ -138,23 +132,23 @@ eLambda = do
 eLet :: Parser Expr-- [Def] Expr
 eLet = do
     let_ <- try $ lexeme $ string "let"
-    fun_<- lexeme $ many1 $ try defination
+    fun_<- lexeme $ many1 defination
     in_ <- lexeme $ string "in"
-    expr_<- lexeme $ expr
+    expr_<- lexeme $ expr 
     -- case_body <- lexeme $ many1 $ try case_bodyE
-    return $ Let fun_ expr_--case_object case_body
+    return $ Let fun_ expr_--(Var "aa")--case_object case_body
 
 case_bodyE :: Parser (Pattern,Expr)
 case_bodyE = do 
-    fp <- lexeme $ pattern
+    fp <- lexeme $ pattern<|>pVar1
     arrowc <- lexeme $ string "->"
-    ec <- lexeme $ expr
+    ec <- lexeme $ expr 
     return $ (fp , ec)
 
 eCase :: Parser Expr-- Expr [(Pattern, Expr)]
 eCase = do
     casec <- try $  lexeme $ string "case"
-    case_object<- lexeme $ expr0
+    case_object<- lexeme $ expr
     thenc <- lexeme $ string "of"
     case_body <- lexeme $ many1 $ try case_bodyE
     return $ Case case_object case_body
@@ -176,30 +170,34 @@ eTupple = do
             return $ Tupple first second rest
 
 
+eTag ::Parser Expr
+eTag = do 
+    fp <- lexeme $ uppVar
+    mc <- lexeme $ many expr0
+    return $ Tag fp mc
 
 
-
-eCall :: Parser Expr -- Expr [Expr]
-eCall = do 
-    fe <- try $ lexeme $ lowVar
-    ec <- try $ lexeme $ many expr
-    if length ec == 0 then return $ Var fe
-    else return $ Call fe ec
 
 ----------------------------------------
 expr0 :: Parser Expr
-expr0 = try eStr <|> eInt <|> eVar <|> eNegate <|> eList 
+expr0 = try eStr <|> eInt <|> eVar <|> eNegate <|> eList <|> eTag
+
+-- expr :: Parser Expr
+-- expr = try eBinops <|>eIf <|> eCase <|> eLet <|> eTupple <|> eRecord_Update <|> eLambda <|> expr0
 
 expr :: Parser Expr
-expr = try eBinops <|> eTupple <|>eIf <|> eLet <|> eCase<|> eRecord_Update <|> eLambda   <|> expr0
+expr = try eBinops <|> eTag<|>eCase<|>eIf <|> eLet <|> eVar <|> eStr <|> eInt <|> eList <|> eRecord_Update <|> eTupple  <|> eNegate 
 
+
+-- expression :: Parser Expr
+-- expression = try eIf <|> eLet <|> eCase<|> eLambda
 --exprs :: Parser [Expr]
 --exprs = spaces *> many (lexeme $ expr)
 --------------------
 
 defination :: Parser Def --(String) [Pattern] Expr
 defination = do 
-    fc <- lexeme $ lowVar
+    fc <- lexeme $ lowVar_Not_Key
     mc <- lexeme $ many $ pattern
     eq <- lexeme $ char '='
     ec <- lexeme $ expr

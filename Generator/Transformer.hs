@@ -1,129 +1,176 @@
 module Generator.Transformer where
-import Validator.Validator
-import Parser.AST 
 import Generator.JSAST
-import Data.Maybe
-import Data.List.Split
-
-lookup_record_by_first:: [(String,Expr)] -> String -> String
-lookup_record_by_first [] _first = ""
-lookup_record_by_first (x:xs) _first = 
-    case x of
-        (str , value) -> 
-            if str == _first 
-            then (case value of 
-                    Var v ->  v
-                    Int i ->  show i
-                    Str s ->  s 
-                    List l -> cat_libraries "" l 
-                )
-            else lookup_record_by_first xs _first
--------------------------------------------------------------------
-cat_libraries :: String -> [Expr] -> String
-cat_libraries temp [] = temp
-cat_libraries temp (x:xs) = 
-    case x of 
-        Str s ->  if temp == "" 
-                  then cat_libraries ( temp++s) xs
-                  else cat_libraries ( temp++ "," ++ s) xs
-
-generate_lib :: [JSState] -> [String] -> Maybe [JSState]
-generate_lib temp [] = Just temp 
-generate_lib temp (x:xs) = 
-    let var_name = (case x of 
-                    "system-sleep" -> "sleep"
-                    "node-dht-sensor" -> "dht_sensor"
-                    "raspi-sensors" -> "RaspiSensors" 
-                    otherwise -> "no-defined library"
-                   )
-        state = [ JSVariable [(JSVarInitExpr (JSIdentifier var_name) (JSMemberExpr (JSIdentifier "require") [(JSStringLiteral x)]) )] JSSemiAuto]
-    in generate_lib (temp ++ state) xs
-
-generate_libs :: String -> [JSState]
-generate_libs str = 
-    let libs = splitOn "," str
-    in case generate_lib [] libs of 
-        Nothing -> []
-        Just states -> states
+import Parser.AST
 
 
-generate_header:: [(String,Expr)]  -> [JSState]
-generate_header li = generate_libs $ lookup_record_by_first li "_library" 
-----------------------------------------------------------------
+lib_name = "_lib"
 
-generate_device:: [(String,Expr)]  -> [JSState]
-generate_device li = 
-    let pin_num = lookup_record_by_first li "_device_pin_number"
-        device_name = lookup_record_by_first li "_device_name"
-        device_state = lookup_record_by_first li "_device_state"
-    in case pin_num of 
-        "NULL" -> []
-        otherwise -> [(JSVariable [(JSVarInitExpr (JSIdentifier "Gpio") (JSCallExprDot (JSMemberExpr (JSIdentifier "require") [(JSStringLiteral "onoff")] ) (JSIdentifier "Gpio") ))] JSSemiAuto), (JSVariable [(JSVarInitExpr (JSIdentifier device_name)  (JSMemberNew (JSIdentifier "Gpio") [(JSDecimal pin_num),(JSStringLiteral "out")] ) )] JSSemiAuto),(JSMethodCall (JSMemberDot (JSIdentifier device_name) (JSIdentifier "writeSync")) [(JSDecimal device_state)] JSSemiAuto)]
-----------------------------------------------------------------
+ext_rec_by_name :: [(String, Expr)] -> String -> Expr
+ext_rec_by_name (x:xs) name= 
+    case x of (a,b) -> if a == name then b else ext_rec_by_name xs name
+
+trans_expr :: Expr -> String
+trans_expr (Str p) = p
+trans_expr (Int p) = show p
+trans_expr (Boolean p) = p
+trans_expr (Var p) = p 
+
+trans_op :: String -> JSBinOp
+trans_op "+" = Plus
+trans_op "-" = Minus
+trans_op "*" = Times
+trans_op "/" = Divide
+trans_op "<" = Lt
+trans_op "<=" = Le
+trans_op ">" = Gt
+trans_op ">=" = Ge
+trans_op "&&" = Andand
+trans_op "==" = EqEq
+
+trans_expr_to_JS :: Expr -> JSExpr
+trans_expr_to_JS (Str p) =  JSString p
+trans_expr_to_JS (Int p) =  JSInt $ show p
+trans_expr_to_JS (Var p) =  JSId p
+trans_expr_to_JS (Tag s e) = 
+    let helper [] temp = temp
+        helper (x:xs) temp = helper xs (temp ++ [(trans_expr_to_JS x)])
+    in JSTagList ([(JSString s)] ++ (helper e []) )
+trans_expr_to_JS (Record e) = 
+    let helper [] temp = temp
+        helper (x:xs) temp = 
+          case x of 
+            (a, b) -> helper xs (temp ++ [(a,(trans_expr_to_JS b))])
+    in JSRecord (helper e [])
+
+trans_expr_to_JS (Binops a b c) = 
+    JSExprBinary (trans_expr_to_JS b) (trans_op a) (trans_expr_to_JS c)
+
+trans_expr_to_JS (Call "second" a) = 
+    JSIndex (trans_expr_to_JS (head a)) (JSInt "1")
+trans_expr_to_JS (Call "first" a) = 
+    JSIndex (trans_expr_to_JS (head a)) (JSInt "0")
+
+trans_expr_to_JS (Tupple a b _) = 
+    JSList [(trans_expr_to_JS a), (trans_expr_to_JS b)]
 
 
-declare_sensor :: [String] -> [JSState]
-declare_sensor parm= 
-    let s_name = (parm!!0)
-        s_type = (parm!!1)
-        s_desc = (parm!!2)
-        s_addr = (parm!!3)
-    in [JSVariable [(JSVarInitExpr (JSIdentifier s_name) (JSMemberNew (JSMemberDot (JSIdentifier "RaspiSensors") (JSIdentifier "Sensor") ) [(JSProperty [("type",(JSStringLiteral s_type)),
-    ("address", (JSDecimal s_addr))]),(JSStringLiteral s_desc)] ) )] JSSemiAuto]
------------------------------------------------------
+trans_expr_to_JS_state :: Expr -> JSState
+trans_expr_to_JS_state (Case a b) = 
+    let lsh = JSIndex (trans_expr_to_JS a) (JSInt "0")
+        rhs = JSIndex (trans_expr_to_JS a) (JSInt "1")
+        helper (Case a [x]) = 
+            case x of 
+                (PVar "otherwise" , e )-> JSReturn (Just (trans_expr_to_JS e)) Semi
+                -- otherwise -> Empty
+        helper (Case a (x:xs)) = 
+            case x of   --(pattern,expr)
+                (PTuple t1 t2 _ ,e)-> JSIfElse (JSExprBinary (JSExprBinary lsh EqEq (trans_pattern_to_JSExpr t1)) (Andand) (JSExprBinary rhs EqEq (trans_pattern_to_JSExpr t2))) (JSReturn (Just (trans_expr_to_JS e)) Semi) (helper (Case a xs)) 
+                (PCtor c1 c2, e) ->  JSIfElse (JSExprBinary lsh EqEq (JSId c1)) (trans_expr_to_JS_state e) (helper (Case a xs)) 
+                otherwise -> Empty   
+    in helper (Case a b)
 
-
-
-
-while_loop_transform :: [String] -> [Decl] -> [String] -> [JSState]
-while_loop_transform parm trees fun_names = 
-    let interval = (parm!!4)
-        loop_middle = []--[analyse_View fun_names trees]
-    in [JSWhile (JSLiteral "true") (JSStateBlock (loop_middle ++ [(JSMethodCall (JSIdentifier "sleep") [(JSDecimal interval)] JSSemiAuto)]) JSSemiAuto) ]
-
-
---[_name,_type,_desc,_addr]
-generate_sensor_IC2 :: [String] ->[Decl] -> [String] -> [JSState]
-generate_sensor_IC2 parm trees fun_names = --"IC2"
-    let declare = declare_sensor parm
-        while_loop = while_loop_transform parm trees fun_names
-    in declare ++ while_loop 
-
-
-generate_sensor:: [(String,Expr)]  -> [Decl] -> [String] -> [JSState]
-generate_sensor li trees fun_names = 
-    let s_name = lookup_record_by_first li "_sensor_name" 
-        s_type = lookup_record_by_first li "_sensor_type" 
-        s_plug = lookup_record_by_first li "_plug_type" 
-        s_desc = lookup_record_by_first li "_sensor_description" 
-        s_addr = lookup_record_by_first li "_sensor_address"  
-        interval = lookup_record_by_first li "_interval"
-    in case s_addr of 
-        "NULL" -> []
-        otherwise -> 
-            case s_plug of
-                "IC2" -> generate_sensor_IC2 [s_name,s_type,s_desc,s_addr,interval] trees fun_names 
-                "GPIO" -> []
-        --[(JSVariable [JSIdentifier "hui"] JSSemiAuto)]
+trans_expr_to_JS_state (If a b) = --[(Expr, Expr)] Expr 
+    let this_one = head a 
+        cond = case this_one of 
+                (e1,e2) -> e1
+        res = case this_one of 
+                (e1,e2) -> e2
+    in if (length a) == 1 then JSIfElse (trans_expr_to_JS cond) (JSReturn ( Just (trans_expr_to_JS res)) Semi ) ((JSReturn (Just (trans_expr_to_JS b)) Semi))--
+       else JSIfElse (trans_expr_to_JS cond) (JSReturn ( Just (trans_expr_to_JS res)) Semi ) (trans_expr_to_JS_state (If (tail a) (b)))
+trans_expr_to_JS_state (Tupple a b _) = 
+    JSStateList [(trans_expr_to_JS a), (trans_expr_to_JS b)]
 
 
 
-
-transform_Model :: [Decl] -> [String] -> JSAST
-transform_Model trees fun_names = 
-    let model_declare = find_func_by_name (fun_names!!0) trees
-    in case model_declare of 
-        Just (Definition a b (Record li)) -> 
-            (let  header = generate_header li 
-                  device = generate_device li
-                  sensor = generate_sensor li trees fun_names 
-             in JSAstProgram (header ++ device ++ sensor))
-        Nothing -> JSAstProgram []
-
-
------------------------------------------------------
-transformer :: [Decl] -> [String] -> JSAST
-transformer trees fun_names =  transform_Model trees fun_names
     
-    
-  --  JSAstProgram []
+trans_pattern_to_JSExpr :: Pattern  -> JSExpr
+trans_pattern_to_JSExpr (PStr s) = JSString s
+
+trans_pattern_to_JS :: Pattern  -> String
+trans_pattern_to_JS p = 
+    case p of 
+        PStr p  -> p
+        PInt p  -> show p
+        PVar p  -> p
+        PTuple p1 p2 _ -> ("(" ++ (trans_pattern_to_JS p1) ++ ", " ++ (trans_pattern_to_JS p2) ++ ")" )
+
+trans_state_to_JS :: Decl -> JSState
+trans_state_to_JS (Definition c d e) = 
+    JSFunction c (map trans_pattern_to_JS d) (trans_expr_to_JS_state e)
+
+
+view_sen_list :: Expr -> [JSState]
+view_sen_list (List li) = 
+    let helper (Call a [(Call b [(Tag c [(Var name)])])]) = 
+            JSCallDot (JSId name) (JSMemberExpr(JSId "fetch") [(JSFunctionExpression ("") [("err"),("num")] [(JSMemberExpr (JSId "update") [(JSList [(JSString c),(JSId "num")]),(JSId "model")])] )]) Semi
+    in map helper li 
+
+
+view_dev_list :: Expr -> [JSState]
+view_dev_list (List li) = 
+    let helper (Call a [(Call b [(Call c [(Var name)])])]) = 
+            JSCallDot (JSId name) (JSMemberExpr (JSId "writeSync") [(JSMemberExpr (JSId b) [JSId c])]) Semi
+    in map helper li
+
+update_body :: Expr -> JSState
+update_body (Case a b) = trans_expr_to_JS_state (Case a b)
+------------------------------------------------------------------
+transformer :: [Decl] -> [JSState] -> JSAST
+transformer [] temp  = JSAstProgram temp 
+transformer ((Annotation a (TTypeQual "Device" [])):(Definition c d (Record e)):xs) temp = 
+    let pin   =  trans_expr $ ext_rec_by_name e "d_pin"
+        lib   =  trans_expr $ ext_rec_by_name e "d_lib"
+        func  =  trans_expr $ ext_rec_by_name e "d_func"
+        dir   =  trans_expr $ ext_rec_by_name e "d_dir"
+        state1 = JSVariable [(JSVarInitExpr (JSId (c++lib_name)) (JSMemberDot (JSMemberExpr (JSId "require") [(JSString lib)] ) (JSId func)))] Semi
+        state2 = JSVariable [(JSVarInitExpr (JSId c) (JSMemberNew (JSId (c++lib_name)) [(JSInt pin),(JSString dir)] ))] Semi
+    in transformer xs (temp++ [state1] ++  [state2]) 
+
+transformer ((Annotation a (TTypeQual "Sensor" [])):(Definition c d (Record e)):xs) temp = 
+    let lib   =  trans_expr $ ext_rec_by_name e "s_lib"
+        constFun =  trans_expr $ ext_rec_by_name e "s_constFun"
+        type_  =  trans_expr $ ext_rec_by_name e "s_type"
+        address   =  trans_expr $ ext_rec_by_name e "s_address"
+        desc   =  trans_expr $ ext_rec_by_name e "s_desc"
+
+        state1 = JSVariable [(JSVarInitExpr (JSId (c++lib_name)) (JSMemberExpr (JSId "require") [(JSString lib)]))] Semi
+        
+        state2 = JSVariable [(JSVarInitExpr (JSId c) (JSMemberNew (JSMemberDot (JSId (c++lib_name)) (JSId constFun)) [(JSRecord [(("type"),(JSString type_)),(("address"),(JSInt address))]),(JSString desc)] ))] Semi
+    in transformer xs (temp++ [state1] ++  [state2]) 
+
+transformer ((Annotation a b):(Definition "model" d e):xs) temp = 
+    let model_list = 
+          case e of 
+            Int i -> [JSInt (show i)]
+            Tupple t1 t2 _ -> 
+                let helper pp = 
+                        case pp of JSTagList li -> li
+                    taglist1 = head (helper (trans_expr_to_JS t1))
+                    taglist2 = head (helper (trans_expr_to_JS t2))
+                in [taglist1,taglist2] 
+        statement = JSVariable [(JSVarInitExpr (JSId "model") (JSList model_list))] Semi
+    in transformer xs (temp ++ [statement])
+
+
+transformer ((Definition "view" d (Call "iot" sen_dev)):xs) temp =
+    let sensor_list = (sen_dev !! 0)
+        device_list = (sen_dev !! 1)
+        statement = JSWhile (JSBool "true") (JSStateBlock ((view_sen_list sensor_list)++(view_dev_list device_list)))
+    in transformer xs (temp++[statement]) 
+
+
+transformer ((Definition "update" d e):xs) temp =
+    let params [] temp = temp
+        params (x:xs) temp = params xs (temp ++ [trans_pattern_to_JS x])
+        statement = JSFunction ("update") (params d []) (update_body e)
+    in transformer xs (temp++[statement]) 
+
+
+transformer ((Definition c d e):xs) temp = 
+    if c == "iot_main" 
+        then transformer xs temp
+        else let body_expr = trans_state_to_JS (Definition c d e)
+             in  transformer xs (temp++[body_expr]) 
+
+transformer (x:xs) temp = transformer xs (temp++[Empty]) 
+

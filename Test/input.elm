@@ -1,34 +1,80 @@
-main = {  view = view, model = model,update = update }
+buzzer_1 : Device;
+buzzer_1 = {
+     d_pin   = 18
+    ,d_lib  = "onoff"
+    ,d_func = "Gpio" 
+    ,d_dir  = "out"
+    };
 
-model = { 
-      _sensor_name = NULL
-    , _sensor_type = BMP180
-    , _plug_type = IC2
-    , _sensor_description = "Temperature_sensor"
-    , _sensor_address = 0X77
-    ------------------------------
-    , _device_pin_number = 18 
-    , _device_name = fan
-    , _device_state = 0     
-    , _device_log_info = "Written to pin 18"
-    --------------------------------
-    , _interval = 5000
-    , _library = [ "raspi-sensors","node-dht-sensor","system-sleep"]
-}
+fan_1 : Device ;
+fan_1 = {
+     d_pin  = 16
+    ,d_lib  = "onoff"
+    ,d_func = "Gpio"
+    ,d_dir  = "out"
+    };
 
-type Msg = SetHigh | SetLow 
+bmp180 : Sensor;
+bmp180 = {
+     s_lib = "raspi-sensors"
+    ,s_constFun = "Sensor"
+    ,s_type = "BMP180"
+    ,s_address = 0X77
+    ,s_desc = "Temperature_sensor"
+    } ;
+
+tsl2561 : Sensor;
+tsl2561 = {
+     s_lib = "raspi-sensors"
+    ,s_constFun = "Sensor"
+    ,s_type = "TSL2561"
+    ,s_address = 0X39
+    ,s_desc = "LIGHT_sensor"
+    };
 
 
--- update : List a -> Int -> Int 
-update msg m = 
+iot_main = { model = model, view = view, update = update };
+
+type TemperatureTyp  = HIGH|MEDIUM|LOW ;   --temperature type 
+type LightTyp        = DAY|EVENING|NIGHT ;  --light type 
+
+model : (TemperatureTyp , LightTyp);
+model = (HIGH, DAY);
+
+type Msg = Temperature Int | Light Int ;
+
+update msg model = 
   case msg of 
-    SetHigh -> {model | _device_state = 1} 
-    SetLow ->  {model | _device_state = 0} 
-
-onChange = if data > 30 then SetHigh else SetLow
+    Temperature num -> 
+             if num < 20 
+             then (LOW, second model)
+             else if num < 30 then (MEDIUM, second model)
+             else (HIGH, second model)
+    Light num -> 
+             if num > 500 
+             then (first model, DAY)
+             else if num > 200 then (first model, EVENING)
+             else (first model, NIGHT)
+    otherwise -> model ;
 
 view model = 
-    io [][
-        buzzer1  [onChange] []
-        , buzzer2 [SetHigh] [] 
+    iot [
+        light onLightChange Light tsl2561 
+        ,temperature onTemperatureChange Temperature bmp180 
     ]
+    [
+        fan control_fan model fan_1
+        ,buzzer control_buzzer model buzzer_1
+    ];
+
+control_fan model = 
+    case model of
+        (HIGH, DAY)     -> 1 --SetHigh
+        (HIGH, EVENING) -> 1 --SetHigh
+        otherwise       -> 0 --SetLow;
+;
+control_buzzer model = 
+    case model of
+        (LOW, NIGHT)    -> 1 --SetHigh
+        otherwise       -> 0 --SetLow;
+;

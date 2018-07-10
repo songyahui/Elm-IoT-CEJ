@@ -4,7 +4,7 @@ import Text.ParserCombinators.Parsec
 import Control.Applicative ((<*), (*>), (<$>), (<*>))
 import Parser.Pattern 
 import Parser.Expression
-import Parser.Type
+import Parser.Type as T
 
 
 unionDhelper :: Parser (String, [Type])
@@ -47,22 +47,34 @@ nameArgsEqualsHelp1 name args =
 unionD_or_aliasD  :: Parser Decl
 unionD_or_aliasD = do 
     re <- try $ lexeme $ string "type" 
-    fc <- lexeme $ unionD <|> aliasD
+    fc <- lexeme_ret $ unionD <|> aliasD
     return fc 
     
 
-definitionD  :: Parser Decl--String [Pattern] Expr
-definitionD = do 
-    fc <- lexeme $ lowVar
+definition :: String -> Parser Decl
+definition fc = do 
     mc <- lexeme $ many $ pattern
     eq <- lexeme $ char '='
-    ec <- lexeme $ expr
+    ec <- lexeme_ret $ expr
     return $ Definition fc mc ec
+
+
+annotation :: String -> Parser Decl
+annotation fc = do 
+    mc <- lexeme $ char ':'
+    ec <- lexeme_ret $ T.type_
+    return $ Annotation fc ec
+
+_def  :: Parser Decl--String [Pattern] Expr
+_def = do 
+    fc <- lexeme $ lowVar 
+    mc <- (definition fc)<|> (annotation fc)
+    return mc
 
 
 
 declaration :: Parser Decl
-declaration = try  unionD_or_aliasD <|> definitionD 
+declaration = try unionD_or_aliasD <|> _def
 
 
 declarations :: Parser [Decl]
