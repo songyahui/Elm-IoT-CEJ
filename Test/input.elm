@@ -6,8 +6,8 @@ light_1 = {
     ,d_dir  = "out"
     };
 
-fan_1 : Device ;
-fan_1 = {
+buzzer_1 : Device ;
+buzzer_1 = {
      d_pin  = 23
     ,d_lib  = "onoff"
     ,d_func = "Gpio"
@@ -63,11 +63,11 @@ view model =
         ,temperature onTemperatureChange Temperature bmp180 
     ]
     [
-        fan control_fan model fan_1
+        buzzer control_buzzer model buzzer_1
         ,light control_light model light_1
     ];
 
-control_fan model = 
+control_buzzer model = 
     case model of
         (HIGH, DAY)     -> 1 --SetHigh
         (HIGH, EVENING) -> 1 --SetHigh
