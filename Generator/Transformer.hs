@@ -102,7 +102,7 @@ trans_state_to_JS (Definition c d e) =
 view_sen_list :: Expr -> [JSState]
 view_sen_list (List li) = 
     let helper (Call a [(Call b [(Tag c [(Var name)])])]) = 
-            JSCallDot (JSId name) (JSMemberExpr(JSId "fetch") [(JSFunctionExpression ("") [("err"),("num")] [(JSMemberExpr (JSId "update") [(JSList [(JSString c),(JSId "num")]),(JSId "model")])] )]) Semi
+            JSCallDot (JSId name) (JSMemberExpr(JSId "fetch") [(JSFunctionExpression ("") [("err"),("num")] [(JSMemberExpr (JSId "update") [(JSList [(JSId "num.type"),(JSId "num.value")]),(JSId "model")])] )]) Semi
     in map helper li 
 
 

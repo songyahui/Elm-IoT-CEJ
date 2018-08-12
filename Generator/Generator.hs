@@ -22,7 +22,7 @@ gen_state (JSIfElse a b c) =
     "if " ++ (gen_expr a) ++ "{\n " ++ (gen_state b) ++ "}\n else " ++ (gen_state c) 
 
 gen_state (JSWhile a b) = 
-    "while (" ++ (gen_expr a) ++ "){\n " ++ (gen_state b) ++ "}"
+    "while (" ++ (gen_expr a) ++ "){\n " ++ (gen_state b) ++ " var sleep = require('system-sleep');\n sleep(5000);\n }"
 
 gen_state (JSCallDot a b c) = 
     (gen_expr a) ++"." ++ (gen_expr b) ++ ";\n"
@@ -62,7 +62,10 @@ gen_expr (JSMemberDot a b) = (gen_expr a) ++ "." ++ (gen_expr b) -- firstpart.na
 gen_expr (JSMemberExpr a b) = 
     let helper [x] temp = temp ++ (gen_expr x)
         helper (x:xs) temp = (helper xs ((gen_expr x) ++ ", "))
-    in (gen_expr a) ++ "( " ++ (helper b "") ++ " )"  --JSExpr [JSExpr] -- expr(args)
+    in 
+        case a of 
+            JSId "update" -> "model = " ++ (gen_expr a) ++ "( " ++ (helper b "") ++ " )"
+            otherwisw -> (gen_expr a) ++ "( " ++ (helper b "") ++ " )"  --JSExpr [JSExpr] -- expr(args)
 gen_expr (JSMemberNew a b) = 
     let helper [x] temp = temp ++  (gen_expr x)
         helper (x:xs) temp = helper xs ((gen_expr x) ++ ", ")

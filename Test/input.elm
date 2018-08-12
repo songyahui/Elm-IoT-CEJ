@@ -1,5 +1,5 @@
-buzzer_1 : Device;
-buzzer_1 = {
+light_1 : Device;
+light_1 = {
      d_pin   = 18
     ,d_lib  = "onoff"
     ,d_func = "Gpio" 
@@ -8,7 +8,7 @@ buzzer_1 = {
 
 fan_1 : Device ;
 fan_1 = {
-     d_pin  = 16
+     d_pin  = 23
     ,d_lib  = "onoff"
     ,d_func = "Gpio"
     ,d_dir  = "out"
@@ -46,14 +46,14 @@ type Msg = Temperature Int | Light Int ;
 update msg model = 
   case msg of 
     Temperature num -> 
-             if num < 20 
+             if num < 25 
              then (LOW, second model)
-             else if num < 30 then (MEDIUM, second model)
+             else if num < 28 then (MEDIUM, second model)
              else (HIGH, second model)
     Light num -> 
-             if num > 500 
+             if num > 10000 
              then (first model, DAY)
-             else if num > 200 then (first model, EVENING)
+             else if num > 5000 then (first model, EVENING)
              else (first model, NIGHT)
     otherwise -> model ;
 
@@ -64,17 +64,20 @@ view model =
     ]
     [
         fan control_fan model fan_1
-        ,buzzer control_buzzer model buzzer_1
+        ,light control_light model light_1
     ];
 
 control_fan model = 
     case model of
         (HIGH, DAY)     -> 1 --SetHigh
         (HIGH, EVENING) -> 1 --SetHigh
+        (HIGH, NIGHT) -> 1 --SetHigh
         otherwise       -> 0 --SetLow;
 ;
-control_buzzer model = 
+control_light model = 
     case model of
-        (LOW, NIGHT)    -> 1 --SetHigh
-        otherwise       -> 0 --SetLow;
+        ( HIGH , NIGHT)    -> 1
+        ( MEDIUM , NIGHT)  -> 1
+        ( LOW , NIGHT)     -> 1 --SetHigh
+        otherwise          -> 0 --SetLow;
 ;
